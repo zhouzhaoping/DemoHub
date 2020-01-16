@@ -13,7 +13,7 @@ public class Artist {
     private String Name;
     private List<String> Members;
     private String Origin;
-
+    private boolean isSolo;
     public boolean isFrom(String where) {
         return Origin.equals(where);
     }

@@ -1,26 +1,32 @@
 package com.zhouzhaoping.springdemo.service;
 
 import static java.lang.Character.isDigit;
-import static java.lang.Character.isLowerCase;
 import static java.util.Arrays.asList;
+import static java.util.Comparator.comparing;
+import static java.util.stream.Collectors.averagingInt;
+import static java.util.stream.Collectors.counting;
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.mapping;
+import static java.util.stream.Collectors.maxBy;
+import static java.util.stream.Collectors.partitioningBy;
 import static java.util.stream.Collectors.toList;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
+import java.util.LongSummaryStatistics;
+import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BinaryOperator;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.zhouzhaoping.springdemo.model.Album;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import com.zhouzhaoping.springdemo.model.Album;
 import com.zhouzhaoping.springdemo.model.Artist;
 import com.zhouzhaoping.springdemo.model.Track;
 
@@ -45,8 +51,8 @@ public class LambdaService {
      */
     public void Chapter3() {
         List<Artist> allArtists = new ArrayList<>(asList(
-                new Artist("good party", new ArrayList<>(asList("jack", "sb")), "peking"),
-                new Artist("fuck party", new ArrayList<>(asList("moon", "shit")), "shanghai")));
+                new Artist("good party", new ArrayList<>(asList("jack", "sb")), "peking", false),
+                new Artist("fuck party", new ArrayList<>(asList("moon", "shit")), "shanghai", false)));
         /**
          * 内部迭代 > 迭代器 > for循环
          * filter-惰性求值操作：返回stream，count-及早求值操作：返回另一个值或者空；与build模式类似
@@ -66,7 +72,7 @@ public class LambdaService {
                 new Track("Violets for Your Furs", 378L),
                 new Track("Time Was", 451L));
         Track shortestTrack = tracks.stream()
-                .min(Comparator.comparing(track -> track.getLength()))
+                .min(comparing(track -> track.getLength()))
                 .get();
         int sum = Stream.of(1, 2, 3).reduce(0, (acc, element) -> acc + element);
         return;
@@ -77,8 +83,8 @@ public class LambdaService {
     }
     private List<String> artistAndOrigin(List<Artist> artists) {
         return artists.stream()
-                .map(artist -> artist.getName() + "+" + artist.getOrigin())
-                .collect(Collectors.toList());
+                .flatMap(artist -> Stream.of(artist.getName(), artist.getOrigin()))
+                .collect(toList());
     }
     private List<Album> under3songAlbum(List<Album> albums) {
         return albums.stream()
@@ -96,16 +102,13 @@ public class LambdaService {
 
         //高阶boolean anyMatch(Predicate<? super T> predicate);
         //低阶Stream<T> limit(long maxSize);
-
-        AtomicInteger count = new AtomicInteger(0);
-        List<String> origins = album.getMusicians().forEach(musician -> );
     }
     private static long lowercaseCount(String string) {
         return string.chars().filter(Character::isLowerCase).count();
     }
     private Optional<String> lowercaseMaxString(List<String> strings) {
         return strings.stream()
-                .max(Comparator.comparing(LambdaService::lowercaseCount));
+                .max(comparing(LambdaService::lowercaseCount));
     }
     private static <I, O> Stream<O> map(Stream<I> in_stream, Function<I, O> mapper) {
         return in_stream.reduce(new ArrayList<O>(), (acc, x) -> {
@@ -138,6 +141,57 @@ public class LambdaService {
         List<I> newLeft = new ArrayList<>(left);
         newLeft.addAll(right);
         return newLeft;
+    }
+
+    /**
+     * 类库
+     */
+    public void Chapter4() {
+        // 装箱类优化Map以及统计方法
+        Album album = new Album("name",
+                asList(new Track("Bakai", 524L), new Track("Violets for Your Furs", 378L), new Track("Time Was", 451L)),
+                asList("sb1", "sb2"));
+        LongSummaryStatistics trackLengthStats = album.getTracks().stream().mapToLong(track -> track.getLength()).summaryStatistics();
+        System.out.printf("Max: %d, Min: %d, Ave: %f, Sum: %d",
+                trackLengthStats.getMax(),
+                trackLengthStats.getMin(),
+                trackLengthStats.getAverage(),
+                trackLengthStats.getSum());
+
+        // Optional和三种使用方式
+        Optional<String> a = Optional.of("a");
+        if (a.isPresent())
+            a.get();
+        Optional<String> b = Optional.ofNullable(null);
+        String str1 = b.orElse("default");
+        String str2 = b.orElseGet(() -> {return "defualt2";});
+    }
+
+    /**
+     * 高级集合类和收集器
+     */
+    public void Chapter5() {
+        // 元素顺序和集合类型相关
+        List<Integer> numbers = asList(1, 2, 3, 4);
+        List<Integer> sameOrder = numbers.stream().collect(toList());
+
+        // 转换成值
+        Stream<Artist> artists = asList(new Artist(), new Artist()).stream();
+        Function<Artist, Long> getCount = artist -> new Long(artist.getMembers().size());
+        artists.collect(maxBy(comparing(getCount)));
+        List<Album> albums = new ArrayList<>();
+        albums.stream().collect(averagingInt(album -> album.getTracks().size()));
+
+        // 数据分块
+        Map<Boolean, List<Artist>> bandsAndSolo = artists.collect(partitioningBy(Artist::isSolo));
+        Map<String, List<Artist>> artistByOrigin = artists.collect(groupingBy(Artist::getOrigin));
+
+        // 字符串
+        String result = artists.map(Artist::getName).collect(Collectors.joining(", ", "[", "]"));
+
+        // 组合收集器
+        Map<String, Long> numberOfAlbums = albums.stream().collect(groupingBy(Album::getName, counting()));
+        Map<Artist, List<String>> nameOfAlbums = albums.stream().collect(groupingBy(Album::getMusicians, mapping(Album::getName, toList())));
     }
 
     public void Test() {
